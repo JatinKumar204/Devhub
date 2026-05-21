@@ -1,0 +1,31 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "services\\UserService\\UserService.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "services\\ProductService\\ProductService.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "services\\OrderService\\OrderService.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "services\\CartService\\CartService.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "services\\CategoryService\\CategoryService.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "services\\WishlistService\\WishlistService.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

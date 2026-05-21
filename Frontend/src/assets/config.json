@@ -1,0 +1,10 @@
+{
+  "services": {
+    "users":    "http://devhub-userservice:3001",
+    "products": "http://devhub-productservice:3002",
+    "orders":   "http://devhub-orderservice:3003",
+    "cart":     "http://devhub-cartservice:3004",
+    "category": "http://devhub-categoryservice:3005",
+    "watchlist": "http://devhub-watchlistservice:3006"
+  }
+}

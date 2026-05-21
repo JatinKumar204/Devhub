@@ -1,0 +1,38 @@
+{
+  "/proxy/users": {
+    "target": "http://localhost:3001",
+    "pathRewrite": { "^/proxy/users": "" },
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/proxy/products": {
+    "target": "http://localhost:3002",
+    "pathRewrite": { "^/proxy/products": "" },
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/proxy/orders": {
+    "target": "http://localhost:3003",
+    "pathRewrite": { "^/proxy/orders": "" },
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/proxy/cart": {
+    "target": "http://localhost:3004",
+    "pathRewrite": { "^/proxy/cart": "" },
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/proxy/wishlist": {
+    "target": "http://localhost:3005",
+    "pathRewrite": { "^/proxy/wishlist": "" },
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/proxy/categories": {
+    "target": "http://localhost:3006",
+    "pathRewrite": { "^/proxy/categories": "" },
+    "changeOrigin": true,
+    "logLevel": "info"
+  }
+}

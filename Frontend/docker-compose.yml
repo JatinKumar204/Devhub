@@ -1,0 +1,118 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────
+#  DevHub eCommerce – All Services
+#  Usage: docker-compose up --build
+# ─────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── SQL Server ────────────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "DevHub@2025!"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "DevHub@2025!", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── User Service  (port 3001) ─────────────────────────────────
+  user-service:
+    build: ./services/UserService
+    ports:
+      - "3001:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=DevHub@2025!;TrustServerCertificate=True;"
+      Jwt__Secret: "YourSuperSecretKeyAtLeast32CharsLong!Change_In_Prod"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  # ── Product Service  (port 3002) ─────────────────────────────
+  product-service:
+    build: ./services/ProductService
+    ports:
+      - "3002:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=DevHub@2025!;TrustServerCertificate=True;"
+      Jwt__Secret: "YourSuperSecretKeyAtLeast32CharsLong!Change_In_Prod"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  # ── Order Service  (port 3003) ───────────────────────────────
+  order-service:
+    build: ./services/OrderService
+    ports:
+      - "3003:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=DevHub@2025!;TrustServerCertificate=True;"
+      Jwt__Secret: "YourSuperSecretKeyAtLeast32CharsLong!Change_In_Prod"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  # ── Cart Service  (port 3004) ────────────────────────────────
+  cart-service:
+    build: ./services/CartService
+    ports:
+      - "3004:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=DevHub@2025!;TrustServerCertificate=True;"
+      Jwt__Secret: "YourSuperSecretKeyAtLeast32CharsLong!Change_In_Prod"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  # ── Wishlist Service  (port 3005) ────────────────────────────
+  wishlist-service:
+    build: ./services/WishlistService
+    ports:
+      - "3005:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=DevHub@2025!;TrustServerCertificate=True;"
+      Jwt__Secret: "YourSuperSecretKeyAtLeast32CharsLong!Change_In_Prod"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  # ── Category Service  (port 3006) ────────────────────────────
+  category-service:
+    build: ./services/CategoryService
+    ports:
+      - "3006:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=DevHub@2025!;TrustServerCertificate=True;"
+      Jwt__Secret: "YourSuperSecretKeyAtLeast32CharsLong!Change_In_Prod"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  # ── Angular Frontend  (port 4200) ────────────────────────────
+  frontend:
+    build: ./Frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - cart-service
+      - wishlist-service
+      - category-service
+
+volumes:
+  sqldata:

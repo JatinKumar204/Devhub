@@ -1,0 +1,128 @@
+version: "3.9"
+
+services:
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: devhub_sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "${DB_SA_PASSWORD:-DevHub@2025!}"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ${DB_SA_PASSWORD:-DevHub@2025!} -Q 'SELECT 1'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  user-service:
+    build:
+      context: ./services/UserService
+      dockerfile: Dockerfile
+    container_name: devhub_user_service
+    environment:
+      PORT: "3001"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      SERVICE_NAME: "UserService"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
+      Jwt__Secret: "${JWT_SECRET:-dev-secret-key-minimum-32-characters-long!}"
+      Jwt__Issuer: "UserService"
+      Jwt__Audience: "DevHub"
+    ports:
+      - "3001:3001"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  product-service:
+    build:
+      context: ./services/ProductService
+      dockerfile: Dockerfile
+    container_name: devhub_product_service
+    environment:
+      PORT: "3002"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      SERVICE_NAME: "ProductService"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
+      Jwt__Secret: "${JWT_SECRET:-dev-secret-key-minimum-32-characters-long!}"
+      Jwt__Issuer: "ProductService"
+      Jwt__Audience: "DevHub"
+    ports:
+      - "3002:3002"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: ./services/OrderService
+      dockerfile: Dockerfile
+    container_name: devhub_order_service
+    environment:
+      PORT: "3003"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      SERVICE_NAME: "OrderService"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
+      Jwt__Secret: "${JWT_SECRET:-dev-secret-key-minimum-32-characters-long!}"
+      Jwt__Issuer: "OrderService"
+      Jwt__Audience: "DevHub"
+    ports:
+      - "3003:3003"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        DEVHUB_ENV: "${DEVHUB_ENV:-development}"
+    container_name: devhub_frontend
+    ports:
+      - "4200:80"
+    networks:
+      - devhub_net
+    restart: unless-stopped
+
+networks:
+  devhub_net:
+    driver: bridge
+    name: devhub_network
+
+volumes:
+  sqlserver_data:

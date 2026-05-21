@@ -1,0 +1,158 @@
+name: DevHub CI/CD
+
+on:
+  push:
+    branches: [Dev]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+  actions: read
+
+jobs:
+
+  ##############################################################################
+  # STEP 1 — DEV  (auto on push to Dev branch)
+  ##############################################################################
+  dev:
+    name: DEV - Build + Test + Deploy
+    runs-on: self-hosted
+    environment: DEV
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Frontend ────────────────────────────────────────────────────────────
+      - name: Frontend - Install dependencies
+        working-directory: Frontend
+        run: npm ci
+
+      - name: Frontend - Lint
+        working-directory: Frontend
+        run: npm run lint -- --max-warnings=0
+        continue-on-error: true   # treat lint as advisory for now; change to false when clean
+
+      - name: Frontend - Build (DEV)
+        working-directory: Frontend
+        run: npm run build -- --configuration=development
+
+      # ── Backend services ────────────────────────────────────────────────────
+      - name: Backend - Restore
+        run: |
+          dotnet restore services/UserService/UserService.csproj
+          dotnet restore services/ProductService/ProductService.csproj
+          dotnet restore services/OrderService/OrderService.csproj
+          dotnet restore services/CartService/CartService.csproj
+          dotnet restore services/WishlistService/WishlistService.csproj
+          dotnet restore services/CategoryService/CategoryService.csproj
+        shell: powershell
+
+      - name: Backend - Build
+        run: |
+          dotnet build services/UserService/UserService.csproj     -c Release --no-restore
+          dotnet build services/ProductService/ProductService.csproj -c Release --no-restore
+          dotnet build services/OrderService/OrderService.csproj   -c Release --no-restore
+          dotnet build services/CartService/CartService.csproj     -c Release --no-restore
+          dotnet build services/WishlistService/WishlistService.csproj -c Release --no-restore
+          dotnet build services/CategoryService/CategoryService.csproj -c Release --no-restore
+        shell: powershell
+
+      # ── Unit Tests ──────────────────────────────────────────────────────────
+      - name: Run Unit Tests
+        run: |
+          dotnet test tests/UserService.Tests/UserService.Tests.csproj `
+            --configuration Release `
+            --no-build `
+            --logger "trx;LogFileName=unit.trx" `
+            --results-directory ./test-results `
+            --collect:"XPlat Code Coverage" `
+            --settings tests/coverlet.runsettings
+        shell: powershell
+
+      - name: Publish Unit Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Tests (DEV)
+          path: "test-results/*.trx"
+          reporter: dotnet-trx
+
+      # ── Deploy to DEV ───────────────────────────────────────────────────────
+      - name: Deploy DEV
+        shell: powershell
+        run: |
+          .\deploy\scripts\deploy-iis.ps1 -Environment DEV -SkipMigrations
+
+  ##############################################################################
+  # STEP 2 — UAT  (waits for DEV, then QA approval gate fires)
+  ##############################################################################
+  uat:
+    name: UAT - Integration Tests + Deploy
+    runs-on: self-hosted
+    needs: dev
+    environment: UAT     # GitHub pauses here and asks the QA lead for approval
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend - Restore
+        run: dotnet restore DevHub.sln
+        shell: powershell
+
+      - name: Backend - Build
+        run: dotnet build DevHub.sln -c Release --no-restore
+        shell: powershell
+
+      # ── Integration Tests ───────────────────────────────────────────────────
+      - name: Run Integration Tests
+        run: |
+          dotnet test tests/UserService.Tests/UserService.Tests.csproj `
+            --configuration Release `
+            --no-build `
+            --logger "trx;LogFileName=int.trx" `
+            --results-directory ./test-results `
+            --settings tests/coverlet.runsettings
+        shell: powershell
+
+      - name: Publish Integration Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Integration Tests (UAT)
+          path: "test-results/*.trx"
+          reporter: dotnet-trx
+
+      # ── Deploy to UAT ────────────────────────────────────────────────────────
+      - name: Deploy UAT
+        shell: powershell
+        run: |
+          .\deploy\scripts\deploy-iis.ps1 -Environment QA
+
+  ##############################################################################
+  # STEP 3 — PROD  (waits for UAT, then PM approval gate fires)
+  ##############################################################################
+  prod:
+    name: PROD - Deploy
+    runs-on: self-hosted
+    needs: uat
+    environment: PROD    # GitHub pauses here and asks the PM for approval
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend - Restore
+        run: dotnet restore DevHub.sln
+        shell: powershell
+
+      - name: Backend - Build
+        run: dotnet build DevHub.sln -c Release --no-restore
+        shell: powershell
+
+      - name: Deploy PROD
+        shell: powershell
+        run: |
+          .\deploy\scripts\deploy-iis.ps1 -Environment PROD
