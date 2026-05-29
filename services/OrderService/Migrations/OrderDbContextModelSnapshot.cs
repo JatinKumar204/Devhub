@@ -87,6 +87,12 @@ namespace OrderService.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedDate");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("Status");
+
                     b.ToTable("Orders");
 
                     b.HasData(
@@ -170,12 +176,24 @@ namespace OrderService.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<int?>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SellerName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasDefaultValue("");
+
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("SellerId");
 
                     b.ToTable("OrderLines");
 
@@ -187,6 +205,8 @@ namespace OrderService.Migrations
                             ProductId = 1,
                             ProductName = "Samsung Galaxy S24",
                             Quantity = 1,
+                            SellerId = 2,
+                            SellerName = "Bob's Store",
                             UnitPrice = 189999m
                         },
                         new
@@ -196,6 +216,8 @@ namespace OrderService.Migrations
                             ProductId = 10,
                             ProductName = "Logitech MX Master 3S Mouse",
                             Quantity = 1,
+                            SellerId = 2,
+                            SellerName = "Bob's Store",
                             UnitPrice = 14999m
                         },
                         new
@@ -205,6 +227,8 @@ namespace OrderService.Migrations
                             ProductId = 8,
                             ProductName = "The Pragmatic Programmer",
                             Quantity = 1,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
                             UnitPrice = 3999m
                         },
                         new
@@ -214,6 +238,8 @@ namespace OrderService.Migrations
                             ProductId = 3,
                             ProductName = "Sony WH-1000XM5 Headphones",
                             Quantity = 1,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
                             UnitPrice = 65999m
                         },
                         new
@@ -223,6 +249,8 @@ namespace OrderService.Migrations
                             ProductId = 4,
                             ProductName = "Nike Air Max 270",
                             Quantity = 1,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
                             UnitPrice = 24999m
                         },
                         new
@@ -232,6 +260,8 @@ namespace OrderService.Migrations
                             ProductId = 7,
                             ProductName = "Yoga Mat Premium Non-Slip",
                             Quantity = 2,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
                             UnitPrice = 3499m
                         },
                         new
@@ -241,7 +271,122 @@ namespace OrderService.Migrations
                             ProductId = 12,
                             ProductName = "Adidas Ultraboost 22",
                             Quantity = 1,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
                             UnitPrice = 24999m
+                        });
+                });
+
+            modelBuilder.Entity("OrderService.Models.Shipment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Carrier")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EstimatedDelivery")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SellerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ShippedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("OrderId", "SellerId")
+                        .IsUnique();
+
+                    b.ToTable("Shipments");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Carrier = "TCS",
+                            CreatedDate = new DateTime(2024, 6, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DeliveredAt = new DateTime(2024, 6, 7, 0, 0, 0, 0, DateTimeKind.Utc),
+                            OrderId = 1,
+                            SellerId = 2,
+                            SellerName = "Bob's Store",
+                            ShippedAt = new DateTime(2024, 6, 4, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Status = "Delivered",
+                            TrackingNumber = "DH-001-BOB"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Carrier = "Leopards",
+                            CreatedDate = new DateTime(2024, 6, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DeliveredAt = new DateTime(2024, 6, 7, 0, 0, 0, 0, DateTimeKind.Utc),
+                            OrderId = 1,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
+                            ShippedAt = new DateTime(2024, 6, 5, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Status = "Delivered",
+                            TrackingNumber = "DH-001-TM"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Carrier = "BlueEx",
+                            CreatedDate = new DateTime(2024, 6, 10, 0, 0, 0, 0, DateTimeKind.Utc),
+                            EstimatedDelivery = new DateTime(2024, 6, 15, 0, 0, 0, 0, DateTimeKind.Utc),
+                            OrderId = 2,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
+                            ShippedAt = new DateTime(2024, 6, 12, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Status = "Shipped",
+                            TrackingNumber = "DH-002-TM"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedDate = new DateTime(2024, 6, 12, 0, 0, 0, 0, DateTimeKind.Utc),
+                            OrderId = 3,
+                            SellerId = 5,
+                            SellerName = "TechMart Official",
+                            Status = "Preparing"
                         });
                 });
 
@@ -256,9 +401,22 @@ namespace OrderService.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("OrderService.Models.Shipment", b =>
+                {
+                    b.HasOne("OrderService.Models.Order", "Order")
+                        .WithMany("Shipments")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("OrderService.Models.Order", b =>
                 {
                     b.Navigation("Lines");
+
+                    b.Navigation("Shipments");
                 });
 #pragma warning restore 612, 618
         }

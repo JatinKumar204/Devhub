@@ -7,20 +7,20 @@ import { filter } from 'rxjs';
 import { CartService } from '../../../core/services/cart.service';
 import { WishlistService } from '../../../core/services/wishlist.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { NotificationBellComponent } from '../../components/notification-bell/notification-bell.component';
 
 @Component({
   selector: 'app-shop-header',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, RouterLinkActive],
+  imports: [CommonModule, FormsModule, RouterLink, RouterLinkActive, NotificationBellComponent],
   template: `
     <header class="shop-header">
-      <!-- Top bar -->
       <div class="top-bar">
         <span>Free delivery on orders over PKR 2,000 🚚</span>
         <span>Pakistan's trusted eCommerce platform</span>
       </div>
 
-      <!-- Main header -->
       <div class="main-header">
         <a routerLink="/shop" class="logo">
           <span class="logo-d">Dev</span><span class="logo-hub">Hub</span>
@@ -42,41 +42,48 @@ import { AuthService } from '../../../core/services/auth.service';
 
         <div class="header-actions">
           @if (auth.isAuthenticated()) {
+            <!-- Notification bell — inline in header -->
+            <div class="bell-wrapper-header">
+              <app-notification-bell />
+            </div>
+
             <div class="action-item" (click)="toggleUserMenu()" style="position:relative;">
               <span class="action-icon">👤</span>
               <span class="action-label">{{ auth.currentUser()?.userName }}</span>
 
-              <!-- FIXED: role-aware dropdown — shows different links for Admin, Seller, Buyer -->
               @if (showUserMenu()) {
                 <div class="dropdown-menu">
-
-                  <!-- Buyer-specific links -->
                   @if (!auth.isAdmin() && !auth.isSeller()) {
-                    <a routerLink="/shop/orders" (click)="showUserMenu.set(false)">📦 My Orders</a>
+                    <a routerLink="/shop/orders"   (click)="showUserMenu.set(false)">📦 My Orders</a>
                     <a routerLink="/shop/wishlist" (click)="showUserMenu.set(false)">🤍 Wishlist</a>
-                    <a routerLink="/shop/cart" (click)="showUserMenu.set(false)">🛒 Cart</a>
+                    <a routerLink="/shop/cart"     (click)="showUserMenu.set(false)">🛒 Cart</a>
                   }
 
-                  <!-- Seller-specific links -->
                   @if (auth.isSeller()) {
                     <div class="dropdown-label">Seller Tools</div>
-                    <a routerLink="/dashboard" (click)="showUserMenu.set(false)">📊 Seller Dashboard</a>
-                    <a routerLink="/products" (click)="showUserMenu.set(false)">📦 My Products</a>
+                    <a routerLink="/dashboard"           (click)="showUserMenu.set(false)">📊 Dashboard</a>
+                    <a routerLink="/products"            (click)="showUserMenu.set(false)">📦 Products</a>
+                    <a routerLink="/seller/shipments"    (click)="showUserMenu.set(false)">🚚 Shipments</a>
+                    <a routerLink="/seller/reviews"      (click)="showUserMenu.set(false)">💬 Reviews</a>
+                    <a routerLink="/seller/verification" (click)="showUserMenu.set(false)">✅ Verification</a>
+                    <a routerLink="/analytics"           (click)="showUserMenu.set(false)">📈 Analytics</a>
                     <div class="dropdown-divider"></div>
-                    <a routerLink="/shop" (click)="showUserMenu.set(false)">🛍️ Visit Shop</a>
+                    <a routerLink="/shop" (click)="showUserMenu.set(false)">🛍️ Browse Shop</a>
                   }
 
-                  <!-- Admin-specific links -->
                   @if (auth.isAdmin()) {
                     <div class="dropdown-label">Admin Panel</div>
-                    <a routerLink="/dashboard" (click)="showUserMenu.set(false)">📊 Dashboard</a>
-                    <a routerLink="/products" (click)="showUserMenu.set(false)">📦 Products</a>
-                    <a routerLink="/orders" (click)="showUserMenu.set(false)">🧾 Orders</a>
-                    <a routerLink="/users" (click)="showUserMenu.set(false)">👥 Users</a>
+                    <a routerLink="/dashboard"          (click)="showUserMenu.set(false)">📊 Dashboard</a>
+                    <a routerLink="/products"           (click)="showUserMenu.set(false)">📦 Products</a>
+                    <a routerLink="/orders"             (click)="showUserMenu.set(false)">🛒 Orders</a>
+                    <a routerLink="/users"              (click)="showUserMenu.set(false)">👥 Users</a>
+                    <a routerLink="/admin/verification" (click)="showUserMenu.set(false)">🔍 Verification Queue</a>
+                    <a routerLink="/analytics"          (click)="showUserMenu.set(false)">📈 Analytics</a>
                   }
 
                   <div class="dropdown-divider"></div>
-                  <a routerLink="/profile" (click)="showUserMenu.set(false)">⚙️ Profile</a>
+                  <a routerLink="/notifications" (click)="showUserMenu.set(false)">🔔 Notifications</a>
+                  <a routerLink="/profile"       (click)="showUserMenu.set(false)">⚙️ Profile</a>
                   <button (click)="logout()">🚪 Sign Out</button>
                 </div>
               }
@@ -88,16 +95,14 @@ import { AuthService } from '../../../core/services/auth.service';
             </a>
           }
 
-          <!-- Wishlist & Cart only meaningful for Buyers (also visible when not logged in) -->
           @if (!auth.isSeller() && !auth.isAdmin()) {
             <a routerLink="/shop/wishlist" class="action-item">
-              <span class="action-icon">🤍</span>
+              <span class="action-icon">❤️</span>
               <span class="action-label">Wishlist</span>
               @if (wishlist.items().length > 0) {
                 <span class="badge">{{ wishlist.items().length }}</span>
               }
             </a>
-
             <a routerLink="/shop/cart" class="action-item cart-action">
               <span class="action-icon">🛒</span>
               <span class="action-label">Cart</span>
@@ -106,18 +111,9 @@ import { AuthService } from '../../../core/services/auth.service';
               }
             </a>
           }
-
-          <!-- Seller: quick link to add a product -->
-          @if (auth.isSeller()) {
-            <a routerLink="/products" class="action-item seller-btn">
-              <span class="action-icon">➕</span>
-              <span class="action-label">Add Product</span>
-            </a>
-          }
         </div>
       </div>
 
-      <!-- Category nav -->
       <nav class="category-nav">
         <a routerLink="/shop/products" class="nav-link"
           routerLinkActive="active" [routerLinkActiveOptions]="{exact: false}"
@@ -152,7 +148,16 @@ import { AuthService } from '../../../core/services/auth.service';
     .search-input:focus { outline: none; }
     .search-btn { padding: 0 18px; background: #ffd700; border: none; font-size: 16px; cursor: pointer; transition: background .15s; }
     .search-btn:hover { background: #ecc900; }
-    .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+    /* Bell in the header: override its colors to match the red header theme */
+    .bell-wrapper-header ::ng-deep .bell-btn { color: #fff !important; }
+    .bell-wrapper-header ::ng-deep .bell-btn:hover,
+    .bell-wrapper-header ::ng-deep .bell-btn.active { background: rgba(255,255,255,.15) !important; }
+    .bell-wrapper-header ::ng-deep .badge { border: 2px solid #f05537; }
+    /* Dropdown from bell should be dark, not white */
+    .bell-wrapper-header ::ng-deep .dropdown { right: 0; left: auto; }
+
     .action-item { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 10px; border-radius: 8px; cursor: pointer; text-decoration: none; color: #fff; position: relative; transition: background .15s; }
     .action-item:hover { background: rgba(255,255,255,.15); }
     .action-icon { font-size: 18px; }
@@ -160,7 +165,6 @@ import { AuthService } from '../../../core/services/auth.service';
     .badge { position: absolute; top: 4px; right: 4px; background: #ffd700; color: #1f2937; font-size: 9px; font-weight: 800; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
     .cart-badge { background: #fff; color: #f05537; }
     .cart-action { background: rgba(255,255,255,.15); }
-    .seller-btn { background: rgba(255,215,0,.2); border: 1px solid rgba(255,215,0,.4); }
     .dropdown-menu { position: absolute; top: calc(100% + 8px); right: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; min-width: 210px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.15); z-index: 200; }
     .dropdown-label { padding: 6px 14px 4px; font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .5px; }
     .dropdown-menu a, .dropdown-menu button { display: block; width: 100%; text-align: left; padding: 9px 14px; border-radius: 7px; font-size: 13px; color: #374151; text-decoration: none; background: none; border: none; cursor: pointer; }
@@ -178,6 +182,7 @@ export class ShopHeaderComponent implements OnInit {
   readonly auth     = inject(AuthService);
   readonly cart     = inject(CartService);
   readonly wishlist = inject(WishlistService);
+  private readonly _notifSvc = inject(NotificationService);
 
   readonly showUserMenu = signal(false);
   activeCategorySlug    = '';
@@ -186,26 +191,32 @@ export class ShopHeaderComponent implements OnInit {
 
   readonly categories = ['Electronics', 'Fashion', 'Home & Kitchen', 'Sports', 'Books', 'Beauty', 'Toys'];
   readonly navCategories = [
-    { slug: 'electronics',    label: 'Electronics'  },
-    { slug: 'fashion',        label: 'Fashion'       },
-    { slug: 'home-kitchen',   label: 'Home & Kitchen'},
-    { slug: 'sports-outdoors',label: 'Sports'        },
-    { slug: 'books',          label: 'Books'         },
-    { slug: 'beauty',         label: 'Beauty'        },
-    { slug: 'toys-games',     label: 'Toys'          },
+    { slug: 'electronics',     label: 'Electronics'   },
+    { slug: 'fashion',         label: 'Fashion'        },
+    { slug: 'home-kitchen',    label: 'Home & Kitchen' },
+    { slug: 'sports-outdoors', label: 'Sports'         },
+    { slug: 'books',           label: 'Books'          },
+    { slug: 'beauty',          label: 'Beauty'         },
+    { slug: 'toys-games',      label: 'Toys'           },
   ];
 
-  ngOnInit() {
-    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
-      const urlTree = this.router.parseUrl(this.router.url);
-      this.activeCategorySlug = urlTree.queryParams['category'] ?? '';
-      this.showUserMenu.set(false);
-    });
+  ngOnInit(): void {
+    if (this.auth.isAuthenticated()) {
+      this._notifSvc.startPolling();
+    }
+
+    this.router.events
+      .pipe(filter(e => e instanceof NavigationEnd))
+      .subscribe(() => {
+        const urlTree = this.router.parseUrl(this.router.url);
+        this.activeCategorySlug = urlTree.queryParams['category'] ?? '';
+        this.showUserMenu.set(false);
+      });
   }
 
-  toggleUserMenu() { this.showUserMenu.update(v => !v); }
+  toggleUserMenu(): void { this.showUserMenu.update(v => !v); }
 
-  doSearch() {
+  doSearch(): void {
     if (!this.searchQuery.trim()) return;
     this.router.navigate(['/shop/products'], {
       queryParams: {
@@ -215,7 +226,8 @@ export class ShopHeaderComponent implements OnInit {
     });
   }
 
-  logout() {
+  logout(): void {
+    this._notifSvc.stopPolling();
     this.auth.logout();
     this.showUserMenu.set(false);
   }

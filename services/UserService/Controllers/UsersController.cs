@@ -92,62 +92,6 @@ public class UsersController(IUserRepository repo, ILogger<UsersController> logg
         return NoContent();
     }
 }
-
-[ApiController]
-[Route("api/[controller]")]
-[Produces("application/json")]
-public class AuthController(
-    IUserRepository repo,
-    ITokenService tokenService,
-    ILogger<AuthController> logger) : ControllerBase
-{
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginDto dto)
-    {
-        var user = await repo.GetByEmailAsync(dto.Email);
-        if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
-        {
-            logger.LogWarning("Failed login for {Email}", dto.Email);
-            return Unauthorized(new { message = "Invalid credentials" });
-        }
-
-        if (!user.IsActive)
-            return Forbid();
-
-        await repo.UpdateLastLoginAsync(user.Id);
-
-        var token = tokenService.GenerateToken(user);
-        logger.LogInformation("Login success for {Email} with role {Role}", dto.Email, user.Role);
-        return Ok(token);
-    }
-
-    // FIXED: Public registration endpoint with role selection (Buyer or Seller)
-    [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
-    {
-        if (string.IsNullOrWhiteSpace(dto.Name) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest(new { message = "Name, Email, and Password are required" });
-
-        if (dto.Password.Length < 6)
-            return BadRequest(new { message = "Password must be at least 6 characters" });
-
-        var existing = await repo.GetByEmailAsync(dto.Email);
-        if (existing is not null)
-            return Conflict(new { message = "Email already registered" });
-
-        // FIXED: Only allow Buyer or Seller roles on self-registration (not Admin)
-        var allowedRoles = new[] { "Buyer", "Seller" };
-        var role = allowedRoles.Contains(dto.Role) ? dto.Role : "Buyer";
-
-        var createDto = new CreateUserDto(dto.Name, dto.Email, dto.Password, role, dto.Department);
-        var user = await repo.CreateAsync(createDto);
-        logger.LogInformation("New {Role} registered: {Email}", role, user.Email);
-
-        var token = tokenService.GenerateToken(user);
-        return CreatedAtAction(nameof(Login), token);
-    }
-}
-
 [ApiController]
 [Route("api/[controller]")]
 public class HealthController : ControllerBase

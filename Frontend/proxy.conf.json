@@ -34,5 +34,12 @@
     "pathRewrite": { "^/proxy/categories": "" },
     "changeOrigin": true,
     "logLevel": "info"
+  },
+  "/proxy/registry": {
+    "target": "http://localhost:3001",
+    "pathRewrite": { "^/proxy/registry": "/api/registry" },
+    "changeOrigin": true,
+    "logLevel": "info",
+    "comment": "Optional convenience proxy — lets Angular use /proxy/registry in dev without CORS issues"
   }
 }

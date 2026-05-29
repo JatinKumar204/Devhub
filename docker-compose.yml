@@ -1,4 +1,7 @@
 version: "3.9"
+# Docker always passes PORT explicitly — DynamicPort.Resolve() sees the env var
+# and uses it directly without scanning. So Docker behavior is 100% unchanged.
+# The dynamic allocation only kicks in when PORT is NOT set (local dev without -StaticPorts).
 
 services:
 
@@ -28,7 +31,7 @@ services:
       dockerfile: Dockerfile
     container_name: devhub_user_service
     environment:
-      PORT: "3001"
+      PORT: "3001"   # Explicit → DynamicPort.Resolve() uses this, no scanning
       ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
       SERVICE_NAME: "UserService"
       ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
@@ -106,9 +109,93 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  cart-service:
+    build:
+      context: ./services/CartService
+      dockerfile: Dockerfile
+    container_name: devhub_cart_service
+    environment:
+      PORT: "3004"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      SERVICE_NAME: "CartService"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
+      Jwt__Secret: "${JWT_SECRET:-dev-secret-key-minimum-32-characters-long!}"
+      Jwt__Issuer: "CartService"
+      Jwt__Audience: "DevHub"
+    ports:
+      - "3004:3004"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  wishlist-service:
+    build:
+      context: ./services/WishlistService
+      dockerfile: Dockerfile
+    container_name: devhub_wishlist_service
+    environment:
+      PORT: "3005"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      SERVICE_NAME: "WishlistService"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
+      Jwt__Secret: "${JWT_SECRET:-dev-secret-key-minimum-32-characters-long!}"
+      Jwt__Issuer: "WishlistService"
+      Jwt__Audience: "DevHub"
+    ports:
+      - "3005:3005"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  category-service:
+    build:
+      context: ./services/CategoryService
+      dockerfile: Dockerfile
+    container_name: devhub_category_service
+    environment:
+      PORT: "3006"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      SERVICE_NAME: "CategoryService"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=DevHub_MainDB;User Id=sa;Password=${DB_SA_PASSWORD:-DevHub@2025!};TrustServerCertificate=True;"
+      Jwt__Secret: "${JWT_SECRET:-dev-secret-key-minimum-32-characters-long!}"
+      Jwt__Issuer: "CategoryService"
+      Jwt__Audience: "DevHub"
+    ports:
+      - "3006:3006"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - devhub_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
   frontend:
     build:
-      context: ./frontend
+      context: ./Frontend
       dockerfile: Dockerfile
       args:
         DEVHUB_ENV: "${DEVHUB_ENV:-development}"

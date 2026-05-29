@@ -1,3 +1,4 @@
+// services/OrderService/Program.cs
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -6,28 +7,29 @@ using Serilog;
 using OrderService.Data;
 using OrderService.Repositories;
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "3009";
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/orderservice-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
-
 try
 {
+    var port = DynamicPort.Resolve("OrderService", 3003);
+
+    Log.Logger = new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File("logs/orderservice-.log", rollingInterval: RollingInterval.Day)
+        .CreateLogger();
+
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
     builder.Services.AddDbContext<OrderDbContext>(opts =>
         opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
     builder.Services.AddScoped<IOrderRepository, OrderRepository>();
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
 
     var jwtSecret = builder.Configuration["Jwt:Secret"] ?? string.Empty;
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "OrderService";
+    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DevHub";
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(opts =>
@@ -56,7 +58,7 @@ try
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
         db.Database.Migrate();
     }
-
+    DynamicPort.ReleaseAll();
     app.UseCors("AllowAll");
     app.UseAuthentication();
     app.UseAuthorization();
@@ -69,20 +71,17 @@ try
 
     app.MapControllers();
     app.MapHealthChecks("/api/health");
+    app.MapGet("/", () => Results.Redirect("/api/health"));
 
-    Log.Information("OrderService v3.0 listening on http://0.0.0.0:{Port}", port);
+    ServiceRegistryEndpoint.Map(app,
+        serviceName: "OrderService",
+        serviceId: "orders",
+        version: "2.0.0",
+        actualPort: port);
+
+    Log.Information("OrderService v2.0 listening on http://0.0.0.0:{Port}", port);
     app.Run();
 }
-catch (HostAbortedException)
-{
-    // EF design-time abort — expected, not an error
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "OrderService failed to start");
-    throw;
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+catch (HostAbortedException) { }
+catch (Exception ex) { Log.Fatal(ex, "OrderService failed to start"); throw; }
+finally { Log.CloseAndFlush(); }

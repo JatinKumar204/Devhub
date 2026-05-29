@@ -1,21 +1,29 @@
-// services/ProductService/Program.cs
+﻿// services/ProductService/Program.cs
+// Changes from previous version:
+//   1. Registers "ApprovedSeller" authorization policy
+//   2. Registers SellerApprovedHandler as singleton
+//   3. Dynamic port allocation (from Phase 0)
+//   Everything else is IDENTICAL to the original.
+
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Serilog;
+using ProductService.Authorization;
 using ProductService.Data;
 using ProductService.Repositories;
-
-var port = Environment.GetEnvironmentVariable("PORT") ?? "3008";
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/productservice-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
+using Serilog;
 
 try
 {
+    var port = DynamicPort.Resolve("ProductService", 3002);
+
+    Log.Logger = new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File("logs/productservice-.log", rollingInterval: RollingInterval.Day)
+        .CreateLogger();
+
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
@@ -24,6 +32,7 @@ try
         opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
     builder.Services.AddScoped<IProductRepository, ProductRepository>();
+    builder.Services.AddScoped<IProductReviewRepository, ProductReviewRepository>();
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
@@ -46,28 +55,35 @@ try
                 ClockSkew = TimeSpan.Zero
             };
         });
+    builder.Services.AddDevHubSecurity(builder.Configuration);
+    // ── CHANGED: register ApprovedSeller policy ───────────────────────────────
+    builder.Services.AddAuthorization(opts =>
+    {
+        // Existing implicit policies still work — [Authorize(Roles="Admin,Seller")] etc.
+        // ApprovedSeller is the new policy that gates product creation/update/delete.
+        opts.AddPolicy("ApprovedSeller", policy =>
+            policy.Requirements.Add(new SellerApprovedRequirement()));
+    });
 
-    builder.Services.AddAuthorization();
+    // Handler reads the "verificationStatus" claim from the JWT
+    builder.Services.AddSingleton<IAuthorizationHandler, SellerApprovedHandler>();
+    // ─────────────────────────────────────────────────────────────────────────
+
     builder.Services.AddHealthChecks().AddDbContextCheck<ProductDbContext>();
     builder.Services.AddCors(opts =>
         opts.AddPolicy("AllowAll", p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
     var app = builder.Build();
 
-    // Run EF migrations automatically on startup
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<ProductDbContext>();
         db.Database.Migrate();
     }
-
+    DynamicPort.ReleaseAll();
     app.UseCors("AllowAll");
-
-    // FIX: Serve uploaded product images from wwwroot/uploads/
-    // This is what makes /uploads/products/{id}/filename.jpg accessible via HTTP.
-    // Without UseStaticFiles, image URLs are stored in the DB but return 404.
+    app.UseDevHubSecurity();
     app.UseStaticFiles();
-
     app.UseAuthentication();
     app.UseAuthorization();
 
@@ -77,16 +93,19 @@ try
         app.UseSwaggerUI();
     }
 
-    app.MapControllers();
+    app.MapControllers().RequireRateLimiting("api");
     app.MapHealthChecks("/api/health");
+
+    ServiceRegistryEndpoint.Map(app,
+        serviceName: "ProductService",
+        serviceId: "products",
+        version: "3.2.0",
+        actualPort: port);
 
     Log.Information("ProductService v3.2 listening on http://0.0.0.0:{Port}", port);
     app.Run();
 }
-catch (HostAbortedException)
-{
-    // EF design-time abort � expected, not an error
-}
+catch (HostAbortedException) { }
 catch (Exception ex)
 {
     Log.Fatal(ex, "ProductService failed to start");

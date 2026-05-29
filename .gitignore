@@ -686,3 +686,13 @@ services/WishlistService/logs/wishlistservice-20260517.log
 services/WishlistService/logs/Wishlistservice-20260518.log
 services/WishlistService/logs/wishlistservice-20260519.log
 services/WishlistService/logs/wishlistservice-20260520.log
+.vs/DevHub/FileContentIndex/ab9cb6d3-a884-4ed5-b584-64c25a165a64.vsidx
+.vs/DevHub/FileContentIndex/a2462510-8ad9-4224-907d-376443dabebd.vsidx
+.vs/DevHub/CopilotIndices/17.14.1231.31060/SemanticSymbols.db-wal
+.vs/DevHub/CopilotIndices/17.14.1231.31060/SemanticSymbols.db-shm
+.vs/DevHub/CopilotIndices/17.14.1231.31060/CodeChunks.db-wal
+.vs/DevHub/CopilotIndices/17.14.1231.31060/CodeChunks.db-shm
+tests/UserService.Tests/obj/Debug/net8.0/UserService.Tests.sourcelink.json
+*.vsidx
+*.log
+*.png

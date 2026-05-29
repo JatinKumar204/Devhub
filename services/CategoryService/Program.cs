@@ -1,3 +1,4 @@
+// services/CategoryService/Program.cs
 using CategoryService.Data;
 using CategoryService.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -6,30 +7,26 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "3012";
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/categoryservice-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
-
 try
 {
+    var port = DynamicPort.Resolve("CategoryService", 3006);
+
+    Log.Logger = new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File("logs/categoryservice-.log", rollingInterval: RollingInterval.Day)
+        .CreateLogger();
+
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-    // Database
     builder.Services.AddDbContext<CategoryDbContext>(opts =>
         opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-    // Repository
     builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
 
-    // JWT Auth (shared secret with other services)
     var jwtSecret = builder.Configuration["Jwt:Secret"] ?? string.Empty;
     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "CategoryService";
     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DevHub";
@@ -56,13 +53,12 @@ try
 
     var app = builder.Build();
 
-    // Auto migrate
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<CategoryDbContext>();
         db.Database.Migrate();
     }
-
+    DynamicPort.ReleaseAll();
     app.UseCors("AllowAll");
     app.UseAuthentication();
     app.UseAuthorization();
@@ -76,19 +72,15 @@ try
     app.MapControllers();
     app.MapHealthChecks("/api/health");
 
-    Log.Information("CategoryService v3.0 listening on http://0.0.0.0:{Port}", port);
+    ServiceRegistryEndpoint.Map(app,
+        serviceName: "CategoryService",
+        serviceId: "category",
+        version: "1.0.0",
+        actualPort: port);
+
+    Log.Information("CategoryService v1.0 listening on http://0.0.0.0:{Port}", port);
     app.Run();
 }
-catch (HostAbortedException)
-{
-    // EF design-time abort — expected, not an error
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "CategoryService failed to start");
-    throw;
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+catch (HostAbortedException) { }
+catch (Exception ex) { Log.Fatal(ex, "CategoryService failed to start"); throw; }
+finally { Log.CloseAndFlush(); }

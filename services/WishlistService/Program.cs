@@ -1,3 +1,4 @@
+// services/WishlistService/Program.cs
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -6,29 +7,28 @@ using Serilog;
 using WishlistService.Data;
 using WishlistService.Repositories;
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "3011";
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/wishlistservice-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
-
 try
 {
+    var port = DynamicPort.Resolve("WishlistService", 3005);
+
+    Log.Logger = new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File("logs/wishlistservice-.log", rollingInterval: RollingInterval.Day)
+        .CreateLogger();
+
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
     builder.Services.AddDbContext<WishlistDbContext>(opts =>
         opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
     builder.Services.AddScoped<IWishlistRepository, WishlistRepository>();
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
 
     var jwtSecret = builder.Configuration["Jwt:Secret"] ?? string.Empty;
-    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "UserService";
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "WishlistService";
     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DevHub";
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -58,7 +58,7 @@ try
         var db = scope.ServiceProvider.GetRequiredService<WishlistDbContext>();
         db.Database.Migrate();
     }
-
+    DynamicPort.ReleaseAll();
     app.UseCors("AllowAll");
     app.UseAuthentication();
     app.UseAuthorization();
@@ -71,18 +71,16 @@ try
 
     app.MapControllers();
     app.MapHealthChecks("/api/health");
-    app.MapGet("/", () => Results.Redirect("/api/health"));
+
+    ServiceRegistryEndpoint.Map(app,
+        serviceName: "WishlistService",
+        serviceId: "wishlist",
+        version: "1.0.0",
+        actualPort: port);
 
     Log.Information("WishlistService v1.0 listening on http://0.0.0.0:{Port}", port);
     app.Run();
 }
-catch (HostAbortedException) { /* EF design-time host — expected */ }
-catch (Exception ex)
-{
-    Log.Fatal(ex, "WishlistService failed to start");
-    throw;
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+catch (HostAbortedException) { }
+catch (Exception ex) { Log.Fatal(ex, "WishlistService failed to start"); throw; }
+finally { Log.CloseAndFlush(); }

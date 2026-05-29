@@ -1,3 +1,4 @@
+// services/CartService/Program.cs
 using CartService.Data;
 using CartService.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -6,31 +7,26 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "3010";
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/cartservice-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
-
 try
 {
-    var builder = WebApplication.CreateBuilder(args);
+    var port = DynamicPort.Resolve("CartService", 3004);
 
+    Log.Logger = new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File("logs/cartservice-.log", rollingInterval: RollingInterval.Day)
+        .CreateLogger();
+
+    var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-    // Database
     builder.Services.AddDbContext<CartDbContext>(opts =>
         opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-    // Repository
     builder.Services.AddScoped<ICartRepository, CartRepository>();
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
 
-    // JWT Auth (shared secret with other services)
     var jwtSecret = builder.Configuration["Jwt:Secret"] ?? string.Empty;
     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "CartService";
     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DevHub";
@@ -62,8 +58,7 @@ try
         var db = scope.ServiceProvider.GetRequiredService<CartDbContext>();
         db.Database.Migrate();
     }
-
-
+    DynamicPort.ReleaseAll();
     app.UseCors("AllowAll");
     app.UseAuthentication();
     app.UseAuthorization();
@@ -77,19 +72,15 @@ try
     app.MapControllers();
     app.MapHealthChecks("/api/health");
 
-    Log.Information("CartService v3.0 listening on http://0.0.0.0:{Port}", port);
+    ServiceRegistryEndpoint.Map(app,
+        serviceName: "CartService",
+        serviceId: "cart",
+        version: "1.0.0",
+        actualPort: port);
+
+    Log.Information("CartService v1.0 listening on http://0.0.0.0:{Port}", port);
     app.Run();
 }
-catch (HostAbortedException)
-{
-    // EF design-time abort — expected, not an error
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "CartService failed to start");
-    throw;
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+catch (HostAbortedException) { }
+catch (Exception ex) { Log.Fatal(ex, "CartService failed to start"); throw; }
+finally { Log.CloseAndFlush(); }

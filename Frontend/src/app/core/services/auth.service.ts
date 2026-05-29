@@ -1,70 +1,110 @@
-// src/app/core/services/auth.service.ts
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap, catchError, throwError } from 'rxjs';
+import { AuthUser, SellerProfileForm, VerificationStatus } from '../models/ecommerce.models';
+import { SellerVerificationService } from './seller-verification.service';
 
-export interface AuthUser {
-  id: number;
-  userId: number;        // FIXED: backend returns both 'id' and 'userId' — normalize to userId
-  userName: string;
-  role: string;
-  roles?: string[];
-  email?: string;
-  accessToken: string;
-  tokenType: string;
-  expiresInSeconds: number;
-  expiresAt: number;
-}
+export { AuthUser };
 
 const TOKEN_KEY = 'devhub_auth';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly _http = inject(HttpClient);
+  private readonly _http   = inject(HttpClient);
   private readonly _router = inject(Router);
+  private readonly _sellerVerificationService = inject(SellerVerificationService);
+  private readonly _user   = signal<AuthUser | null>(this._loadStored());
 
-  private readonly _user = signal<AuthUser | null>(this._loadStored());
-
-  readonly currentUser = this._user.asReadonly();
-  readonly isAuthenticated = computed(() => {
+  readonly currentUser      = this._user.asReadonly();
+  readonly isAuthenticated  = computed(() => {
     const u = this._user();
     return !!u && Date.now() < u.expiresAt;
   });
+  readonly isExpiringSoon = computed(() => {
+    const u = this._user();
+    if (!u) return false;
+    return u.expiresAt - Date.now() < 5 * 60 * 1000;
+  });
+  readonly isAdmin   = computed(() => this._hasRole('Admin'));
+  readonly isSeller  = computed(() => this._hasRole('Seller'));
+  readonly isBuyer   = computed(() => this._hasRole('Buyer'));
+  readonly userId    = computed(() => this._user()?.userId ?? this._user()?.id ?? 0);
 
-  // FIXED: computed role checks — role can come from .role (backend plain field) or .roles[]
-  readonly isAdmin  = computed(() => this._hasRole('Admin'));
-  readonly isSeller = computed(() => this._hasRole('Seller'));
-  readonly isBuyer  = computed(() => this._hasRole('Buyer'));
+  // NEW: true only when seller AND approved — used to gate product management UI
+  readonly isSellerApproved = computed(() =>
+    this._hasRole('Seller') && this._user()?.verificationStatus === 'Approved'
+  );
 
-  /** Returns the numeric user id, or 0 if not authenticated */
-  readonly userId = computed(() => this._user()?.userId ?? this._user()?.id ?? 0);
+  // NEW: returns the raw verification status string for display in UI
+  readonly verificationStatus = computed<VerificationStatus | null>(() =>
+    (this._user()?.verificationStatus as VerificationStatus) ?? null
+  );
+  constructor() {
+    const user = this._user();
+    if (
+      user && this.isAuthenticated() && this._hasRole('Seller') &&
+      user.verificationStatus !== 'Approved'
+    ) {
+      this.refreshSellerVerificationStatus();
+    }
+  }
+  // ── Auth actions ──────────────────────────────────────────────────────────
 
   login(email: string, password: string) {
     return this._http.post<any>('ms://users/api/auth/login', { email, password }).pipe(
-      tap(response => {
-        const user: AuthUser = this._mapResponse(response);
-        this._user.set(user);
-        localStorage.setItem(TOKEN_KEY, JSON.stringify(user));
-      }),
+      tap(response => this._setUser(response)),
       catchError(err => throwError(() => err))
     );
   }
 
-  register(name: string, email: string, password: string, role: 'Buyer' | 'Seller') {
-    return this._http.post<any>('ms://users/api/auth/register', { name, email, password, role }).pipe(
+  register(
+    name: string,
+    email: string,
+    password: string,
+    role: 'Buyer' | 'Seller',
+    sellerProfile?: SellerProfileForm
+  ) {
+    const body: any = { name, email, password, role };
+    if (role === 'Seller' && sellerProfile) {
+      body.sellerProfile = sellerProfile;
+    }
+
+    return this._http.post<any>('ms://users/api/auth/register', body).pipe(
       tap(response => {
-        const user: AuthUser = this._mapResponse(response);
-        this._user.set(user);
-        localStorage.setItem(TOKEN_KEY, JSON.stringify(user));
+        // Response shape: { message, role, verificationStatus, token: { accessToken, ... } }
+        // The token is nested under response.token when verificationStatus is present
+        const tokenData = response.token ?? response;
+        this._setUser(tokenData, response.verificationStatus);
       }),
       catchError(err => throwError(() => err))
     );
   }
+  refreshTokens() {
+    const stored = this._user();
+    const refreshToken = stored?.refreshToken;
 
+    if (!refreshToken) return throwError(() => new Error('No refresh token'));
+
+    return this._http.post<any>('ms://users/api/auth/refresh', { refreshToken }).pipe(
+      tap(response => this._setUser(response)),
+      catchError(err => {
+        // Refresh failed — force logout
+        this._clearUser();
+        this._router.navigate(['/login']);
+        return throwError(() => err);
+      })
+    );
+  }
   logout(): void {
-    this._user.set(null);
-    localStorage.removeItem(TOKEN_KEY);
+    const stored = this._user();
+    // Revoke server-side tokens (best-effort — don't wait for response)
+    if (stored?.accessToken) {
+      this._http.post('ms://users/api/auth/logout', {
+        refreshToken: stored.refreshToken ?? ''
+      }).subscribe({ error: () => {} });
+    }
+    this._clearUser();
     this._router.navigate(['/login']);
   }
 
@@ -73,30 +113,57 @@ export class AuthService {
     if (!u || Date.now() >= u.expiresAt) return null;
     return u.accessToken;
   }
+  refreshSellerVerificationStatus(): void {
+    this._sellerVerificationService.getMyStatus().subscribe({
+        next: (res) => {
+          this.updateVerificationStatus(res.status);
+        },
+        error: () => {
+        }
+      });
+  }
+  updateVerificationStatus(status: VerificationStatus): void {
+    const u = this._user();
+    if (!u) return;
+    const updated = { ...u, verificationStatus: status };
+    this._user.set(updated);
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(updated));
+  }
 
+  // ── Private ───────────────────────────────────────────────────────────────
+
+  private _setUser(response: any, verificationStatus?: string): void {
+    const user = this._mapResponse(response, verificationStatus);
+    this._user.set(user);
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(user));
+  }
+  private _clearUser(): void {
+    this._user.set(null);
+    localStorage.removeItem(TOKEN_KEY);
+  }
   private _hasRole(role: string): boolean {
     const u = this._user();
     if (!u) return false;
-    // role field from backend TokenResponse
     if (u.role === role) return true;
-    // roles array (older format)
     return u.roles?.includes(role) ?? false;
   }
 
-  // FIXED: normalize both 'userId' and 'id' response fields
-  private _mapResponse(response: any): AuthUser {
+  private _mapResponse(response: any, overrideVerificationStatus?: string): AuthUser {
     const userId = response.userId ?? response.id ?? 0;
     return {
-      id:              userId,
-      userId:          userId,
-      userName:        response.userName,
-      role:            response.role,
-      roles:           response.roles,
-      email:           response.email,
-      accessToken:     response.accessToken,
-      tokenType:       response.tokenType ?? 'Bearer',
-      expiresInSeconds: response.expiresInSeconds ?? 3600,
-      expiresAt:       Date.now() + (response.expiresInSeconds ?? 3600) * 1000
+      id:                 userId,
+      userId:             userId,
+      userName:           response.userName,
+      role:               response.role,
+      roles:              response.roles,
+      email:              response.email,
+      accessToken:        response.accessToken,
+      tokenType:          response.tokenType ?? 'Bearer',
+      expiresInSeconds:   response.expiresInSeconds ?? 3600,
+      expiresAt:          Date.now() + (response.expiresInSeconds ?? 3600) * 1000,
+      // verificationStatus: comes from the JWT claim (backend embeds it),
+      // or from the override passed during register response
+      verificationStatus: (overrideVerificationStatus ?? response.verificationStatus) as VerificationStatus ?? null
     };
   }
 

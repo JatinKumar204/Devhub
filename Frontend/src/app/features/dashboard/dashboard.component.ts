@@ -1,24 +1,22 @@
 // src/app/features/dashboard/dashboard.component.ts
-import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { forkJoin, of, catchError } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { NotificationBellComponent } from '../../shared/components/notification-bell/notification-bell.component';
 
 interface DashStat {
-  label: string;
-  value: string | number;
-  sub: string;
-  icon: string;
-  color: string;
-  trend?: number;
+  label: string; value: string | number;
+  sub: string; icon: string; color: string; trend?: number;
 }
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, NotificationBellComponent],
   template: `
     <div class="dashboard">
       <div class="page-header">
@@ -26,24 +24,52 @@ interface DashStat {
           <h1 class="page-title">
             {{ auth.isAdmin() ? 'Admin Dashboard' : 'Seller Dashboard' }}
           </h1>
-          <p class="page-sub">Welcome back, {{ auth.currentUser()?.userName }} 👋
+          <p class="page-sub">
+            Welcome back, {{ auth.currentUser()?.userName }} 👋
             <span class="role-chip" [class.seller]="auth.isSeller()">
               {{ auth.isAdmin() ? 'Admin' : 'Seller' }}
             </span>
           </p>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;">
+
+        <div class="header-right">
+          <app-notification-bell />
+
           <button class="btn-refresh" (click)="loadAll()" [disabled]="loading()">
             <span [class.spin]="loading()">↻</span> Refresh
           </button>
-          @if (auth.isSeller()) {
+
+          <a routerLink="/analytics" class="btn-analytics">📈 Analytics</a>
+
+          @if (auth.isSeller() && auth.isSellerApproved()) {
             <a routerLink="/products" class="btn-primary">+ Add Product</a>
           }
-          <button class="btn-logout" (click)="auth.logout()">Sign Out</button>
+          @if (auth.isAdmin()) {
+            <a routerLink="/admin/verification" class="btn-verify-queue">
+              🔍 Verification Queue
+              @if (pendingVerifications() > 0) {
+                <span class="queue-badge">{{ pendingVerifications() }}</span>
+              }
+            </a>
+          }
+          <button class="btn-logout" (click)="logout()">Sign Out</button>
         </div>
       </div>
 
-      <!-- Stats -->
+      @if (auth.isSeller() && !auth.isSellerApproved()) {
+        <div class="verification-banner" [class]="'vbanner-' + (auth.verificationStatus() ?? 'PendingApproval').toLowerCase()">
+          <span class="vbanner-icon">{{ verificationIcon() }}</span>
+          <div class="vbanner-content">
+            <div class="vbanner-title">{{ verificationTitle() }}</div>
+            <div class="vbanner-desc">{{ verificationDesc() }}</div>
+          </div>
+          <a routerLink="/seller/verification" class="btn-vbanner">
+            {{ auth.verificationStatus() === 'Rejected' || auth.verificationStatus() === 'InfoRequested'
+               ? 'Re-submit →' : 'View Status →' }}
+          </a>
+        </div>
+      }
+
       <div class="stats-grid">
         @for (card of stats(); track card.label) {
           <div class="stat-card" [style.--card-color]="card.color">
@@ -62,9 +88,7 @@ interface DashStat {
         }
       </div>
 
-      <!-- Main grid -->
       <div class="main-grid">
-        <!-- Recent Orders -->
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title">Recent Orders</span>
@@ -73,9 +97,7 @@ interface DashStat {
             }
           </div>
           @if (ordersLoading()) {
-            @for (i of [1,2,3,4,5]; track i) {
-              <div class="skeleton-row"></div>
-            }
+            @for (i of [1,2,3,4,5]; track i) { <div class="skeleton-row"></div> }
           } @else if (recentOrders().length === 0) {
             <div class="panel-empty">No orders yet</div>
           } @else {
@@ -90,7 +112,6 @@ interface DashStat {
           }
         </div>
 
-        <!-- Low Stock Alert -->
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title">⚠ Low Stock Alerts</span>
@@ -105,44 +126,11 @@ interface DashStat {
               <div class="stock-row">
                 <span class="stock-name">{{ p.name }}</span>
                 <span class="stock-cat">{{ p.category }}</span>
-                <span class="stock-qty" [class.critical]="p.stock === 0" [class.low]="p.stock > 0 && p.stock < 5">
+                <span class="stock-qty"
+                  [class.critical]="p.stock === 0"
+                  [class.low]="p.stock > 0 && p.stock < 5">
                   {{ p.stock === 0 ? 'Out of Stock' : p.stock + ' left' }}
                 </span>
-              </div>
-            }
-          }
-        </div>
-
-        <!-- Order Status Breakdown -->
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">Order Status</span>
-          </div>
-          @for (s of orderStatusBreakdown(); track s.label) {
-            <div class="status-bar-row">
-              <span class="sb-label">{{ s.label }}</span>
-              <div class="sb-track">
-                <div class="sb-fill" [style.width.%]="s.pct" [style.background]="s.color"></div>
-              </div>
-              <span class="sb-count">{{ s.count }}</span>
-            </div>
-          }
-        </div>
-
-        <!-- Top Products -->
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">{{ auth.isSeller() ? 'My Top Products' : 'Top Products' }}</span>
-            <a routerLink="/products" class="panel-link">All Products →</a>
-          </div>
-          @if (productsLoading()) {
-            @for (i of [1,2,3]; track i) { <div class="skeleton-row"></div> }
-          } @else {
-            @for (p of topProducts(); track p.id) {
-              <div class="top-product-row">
-                <span class="tp-name">{{ p.name }}</span>
-                <span class="tp-price">PKR {{ p.price | number:'1.0-0' }}</span>
-                <span class="tp-stock">Stock: {{ p.stock }}</span>
               </div>
             }
           }
@@ -151,171 +139,148 @@ interface DashStat {
     </div>
   `,
   styles: [`
-    .dashboard { padding: 28px; max-width: 1400px; margin: 0 auto; }
-    .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
-    .page-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin: 0 0 4px; }
-    .page-sub { font-size: 14px; color: var(--text-muted); margin: 0; display: flex; align-items: center; gap: 8px; }
-    .role-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
-      background: rgba(99,102,241,.15); color: #818cf8; }
-    .role-chip.seller { background: rgba(240,85,55,.12); color: #f05537; }
-    .btn-refresh, .btn-logout, .btn-primary {
-      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; display: inline-block;
-    }
-    .btn-refresh { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
-    .btn-logout  { background: #ef4444; color: #fff; }
-    .btn-primary { background: #f05537; color: #fff; }
-    .btn-refresh:disabled { opacity: .5; }
-    .spin { display: inline-block; animation: spin .6s linear infinite; }
+    .dashboard   { padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
+    .page-title  { font-size: 24px; font-weight: 700; color: var(--text-primary, #e6edf3); margin: 0 0 4px; }
+    .page-sub    { font-size: 14px; color: var(--text-secondary, #8b949e); margin: 0; display: flex; align-items: center; gap: 8px; }
+    .role-chip   { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(99,102,241,.15); color: #818cf8; font-weight: 600; }
+    .role-chip.seller { background: rgba(240,85,55,.1); color: #f05537; }
+    .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .btn-refresh  { padding: 8px 14px; background: #21262d; border: 1px solid #30363d; border-radius: 7px; color: #e6edf3; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .btn-analytics { padding: 8px 14px; background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); border-radius: 7px; color: #22c55e; font-size: 13px; font-weight: 600; text-decoration: none; }
+    .btn-primary  { padding: 8px 16px; background: #f05537; color: #fff; border: none; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .btn-logout   { padding: 8px 14px; background: transparent; border: 1px solid #30363d; border-radius: 7px; color: #8b949e; font-size: 13px; cursor: pointer; }
+    .btn-verify-queue { padding: 8px 14px; background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.3); border-radius: 7px; color: #818cf8; font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 7px; }
+    .queue-badge  { background: #ef4444; color: #fff; border-radius: 99px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+    .spin { display: inline-block; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .verification-banner { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 10px; margin-bottom: 24px; border: 1px solid transparent; }
+    .vbanner-pendingapproval, .vbanner-resubmitted { background: rgba(234,179,8,.07); border-color: rgba(234,179,8,.25); }
+    .vbanner-rejected      { background: rgba(239,68,68,.07);  border-color: rgba(239,68,68,.25); }
+    .vbanner-inforequested { background: rgba(59,130,246,.07); border-color: rgba(59,130,246,.25); }
+    .vbanner-underreview   { background: rgba(168,85,247,.07); border-color: rgba(168,85,247,.25); }
+    .vbanner-icon    { font-size: 28px; flex-shrink: 0; }
+    .vbanner-content { flex: 1; }
+    .vbanner-title   { font-size: 14px; font-weight: 600; color: #e6edf3; }
+    .vbanner-desc    { font-size: 12px; color: #8b949e; margin-top: 2px; }
+    .btn-vbanner { padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; text-decoration: none; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); color: #e6edf3; white-space: nowrap; }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .stat-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 18px; border-top: 3px solid var(--card-color, #6366f1); }
-    .stat-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .stat-icon { font-size: 22px; }
-    .stat-trend { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
-    .stat-trend.up   { background: rgba(34,197,94,.1); color: #22c55e; }
-    .stat-trend.down { background: rgba(239,68,68,.1); color: #ef4444; }
-    .stat-value { font-size: 28px; font-weight: 800; color: var(--text-primary); }
-    .stat-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 2px 0; }
-    .stat-sub   { font-size: 11px; color: var(--text-muted); }
-    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    .panel { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
-    .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .panel-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-    .panel-link { font-size: 12px; color: #818cf8; text-decoration: none; }
-    .panel-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 20px; }
-    .skeleton-row { height: 36px; background: var(--bg-hover); border-radius: 6px; margin-bottom: 8px; }
-    .order-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .stat-card  { background: var(--bg-secondary, #161b22); border: 1px solid var(--border, #21262d); border-radius: 12px; padding: 18px; }
+    .stat-top   { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .stat-icon  { font-size: 22px; }
+    .stat-trend { font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
+    .stat-trend.up   { background: rgba(34,197,94,.12); color: #22c55e; }
+    .stat-trend.down { background: rgba(239,68,68,.12); color: #ef4444; }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--card-color, #e6edf3); }
+    .stat-label { font-size: 13px; font-weight: 600; color: #8b949e; margin-top: 2px; }
+    .stat-sub   { font-size: 11px; color: #64748b; margin-top: 3px; }
+    .main-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel      { background: var(--bg-secondary, #161b22); border: 1px solid var(--border, #21262d); border-radius: 12px; padding: 18px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .panel-title  { font-size: 14px; font-weight: 600; color: #e6edf3; }
+    .panel-link   { font-size: 12px; color: #60a5fa; text-decoration: none; }
+    .panel-empty  { font-size: 13px; color: #64748b; padding: 10px 0; }
+    .order-row    { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
     .order-row:last-child { border-bottom: none; }
-    .order-id { font-family: monospace; color: var(--text-muted); min-width: 50px; }
-    .order-customer { flex: 1; color: var(--text-primary); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .order-total { font-weight: 700; color: var(--text-primary); white-space: nowrap; }
-    .status-chip { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
-    .status-pending    { background: rgba(245,158,11,.15); color: #f59e0b; }
-    .status-processing { background: rgba(99,102,241,.1); color: #818cf8; }
-    .status-completed  { background: rgba(34,197,94,.1); color: #22c55e; }
-    .status-cancelled  { background: rgba(239,68,68,.1); color: #ef4444; }
-    .stock-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .order-id     { color: #8b949e; font-family: monospace; font-size: 12px; width: 40px; }
+    .order-customer { flex: 1; color: #e6edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .order-total  { color: #e6edf3; font-weight: 600; font-size: 12px; }
+    .status-chip  { font-size: 10px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+    .status-Pending    { background: rgba(234,179,8,.12); color: #eab308; }
+    .status-Processing { background: rgba(59,130,246,.12); color: #60a5fa; }
+    .status-Completed  { background: rgba(34,197,94,.12);  color: #22c55e; }
+    .status-Cancelled  { background: rgba(239,68,68,.12);  color: #ef4444; }
+    .stock-row  { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
     .stock-row:last-child { border-bottom: none; }
-    .stock-name { flex: 1; color: var(--text-primary); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .stock-cat  { color: var(--text-muted); font-size: 11px; }
-    .stock-qty  { font-weight: 700; white-space: nowrap; }
+    .stock-name { flex: 1; color: #e6edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stock-cat  { font-size: 11px; color: #64748b; }
+    .stock-qty  { font-size: 12px; font-weight: 600; }
     .stock-qty.critical { color: #ef4444; }
     .stock-qty.low      { color: #f59e0b; }
-    .status-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .sb-label { font-size: 12px; color: var(--text-muted); width: 80px; }
-    .sb-track { flex: 1; height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; }
-    .sb-fill  { height: 100%; border-radius: 3px; transition: width .6s; }
-    .sb-count { font-size: 12px; font-weight: 700; color: var(--text-secondary); min-width: 24px; text-align: right; }
-    .top-product-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .top-product-row:last-child { border-bottom: none; }
-    .tp-name  { flex: 1; color: var(--text-primary); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tp-price { color: #f05537; font-weight: 700; white-space: nowrap; }
-    .tp-stock { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+    .skeleton-row { height: 36px; background: linear-gradient(90deg, #161b22 25%, #21262d 50%, #161b22 75%); background-size: 200%; animation: shimmer 1.5s infinite; border-radius: 6px; margin-bottom: 6px; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    @media (max-width: 700px) {
+      .main-grid   { grid-template-columns: 1fr; }
+      .stats-grid  { grid-template-columns: 1fr 1fr; }
+      .header-right { gap: 6px; }
+    }
   `]
 })
 export class DashboardComponent implements OnInit {
   readonly auth = inject(AuthService);
-  private readonly _http = inject(HttpClient);
+  private readonly _http     = inject(HttpClient);
+  private readonly _notifSvc = inject(NotificationService);
 
-  readonly loading         = signal(false);
-  readonly ordersLoading   = signal(true);
-  readonly productsLoading = signal(true);
-  readonly recentOrders    = signal<any[]>([]);
-  readonly allOrders       = signal<any[]>([]);
-  readonly allProducts     = signal<any[]>([]);
-  readonly stats           = signal<DashStat[]>([]);
+  readonly loading          = signal(false);
+  readonly ordersLoading    = signal(true);
+  readonly productsLoading  = signal(true);
+  readonly stats            = signal<DashStat[]>([]);
+  readonly recentOrders     = signal<any[]>([]);
+  readonly lowStockProducts = signal<any[]>([]);
+  readonly pendingVerifications = signal(0);
 
-  readonly lowStockProducts = computed(() =>
-    this.allProducts().filter(p => p.stock < 10).sort((a, b) => a.stock - b.stock).slice(0, 6)
-  );
+  readonly verificationIcon  = () => ({ PendingApproval:'⏳', Resubmitted:'🔄', UnderReview:'🔍', Rejected:'❌', InfoRequested:'ℹ️', Approved:'✅' }[this.auth.verificationStatus() ?? 'PendingApproval'] ?? '⏳');
+  readonly verificationTitle = () => ({ PendingApproval:'Account Pending Approval', Resubmitted:'Re-submitted — Awaiting Review', UnderReview:'Under Review', Rejected:'Verification Rejected', InfoRequested:'Additional Information Required', Approved:'Verification Approved' }[this.auth.verificationStatus() ?? 'PendingApproval'] ?? 'Pending');
+  readonly verificationDesc  = () => ({ PendingApproval:'Your account is in the review queue. Upload documents while you wait.', Resubmitted:'Your updated documents are under admin review.', UnderReview:'An admin is reviewing your submission.', Rejected:'Your verification was not approved. Check the reason and re-submit.', InfoRequested:'Admin needs more documents. Please re-submit with the requested information.', Approved:'Your verification has been approved.' }[this.auth.verificationStatus() ?? 'PendingApproval'] ?? '');
 
-  readonly topProducts = computed(() =>
-    [...this.allProducts()].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 5)
-  );
-
-  readonly orderStatusBreakdown = computed(() => {
-  const orders = this.allOrders();
-  console.log(orders);
-
-  const total = orders.length || 1;
-
-  const statuses = [
-    { label: 'Pending',    color: '#f59e0b', count: 0 },
-    { label: 'Processing', color: '#6366f1', count: 0 },
-    { label: 'Completed',  color: '#22c55e', count: 0 },
-    { label: 'Cancelled',  color: '#ef4444', count: 0 },
-  ];
-
-  orders.forEach(o => {
-    const statusText = this.getStatusText(o.status);
-    const s = statuses.find(x => x.label === statusText);
-    if (s) s.count++;
-  });
-
-  return statuses.map(s => ({
-      ...s,
-      pct: Math.round((s.count / total) * 100)
-    }));
-  });
-
-  getStatusText(status: any): string {
-    switch (status) {
-      case 0: return 'Pending';
-      case 1: return 'Processing';
-      case 2: return 'Completed';
-      case 3: return 'Cancelled';
-      default: return String(status);
-    }
+  ngOnInit(): void {
+    this._notifSvc.startPolling();
+    this.loadAll();
   }
 
-  ngOnInit() { this.loadAll(); }
+  logout(): void {
+    this._notifSvc.stopPolling();
+    this.auth.logout();
+  }
 
-  loadAll() {
+  loadAll(): void {
     this.loading.set(true);
-    this.ordersLoading.set(true);
-    this.productsLoading.set(true);
-
-    // FIXED: Sellers only see their own products via /products/my-products endpoint
-    const productsUrl = this.auth.isSeller()
-      ? 'ms://products/api/products/my-products?page=1&pageSize=100'
-      : 'ms://products/api/products?page=1&pageSize=100';
-
-    // FIXED: Sellers see orders filtered by their customerId (orders they fulfilled)
-    // Admin sees all orders
-    const ordersUrl = 'ms://orders/api/orders?page=1&pageSize=100';
+    const sellerId = this.auth.isSeller() ? this.auth.userId() : undefined;
 
     forkJoin({
-      orders:   this._http.get<any[]>(ordersUrl).pipe(catchError(() => of([]))),
-      products: this._http.get<any>(productsUrl).pipe(catchError(() => of({ items: [], total: 0 }))),
+      orders: this._http.get<any>(
+        this.auth.isSeller()
+          ? `ms://orders/api/orders?sellerId=${sellerId}&page=1&pageSize=5`
+          : 'ms://orders/api/orders?page=1&pageSize=5'
+      ).pipe(catchError(() => of({ items: [], total: 0 }))),
+      products: this._http.get<any>(
+        this.auth.isSeller()
+          ? 'ms://products/api/products/my-products?page=1&pageSize=100'
+          : 'ms://products/api/products?page=1&pageSize=100'
+      ).pipe(catchError(() => of({ items: [], total: 0 }))),
+      ...(this.auth.isAdmin() ? {
+        verifications: this._http.get<any>('ms://users/api/seller-verification/queue?pageSize=1')
+          .pipe(catchError(() => of({ total: 0 })))
+      } : {})
     }).subscribe({
-      next: ({ orders, products }) => {
-        const orderList   = Array.isArray(orders) ? orders : [];
-        const productList = products?.items ?? [];
+      next: (data: any) => {
+        const orders   = data.orders?.items   ?? [];
+        const products = data.products?.items ?? [];
 
-        this.allOrders.set(orderList);
-        this.recentOrders.set(orderList.slice(0, 8));
-        this.allProducts.set(productList);
+        if (this.auth.isAdmin() && data.verifications)
+          this.pendingVerifications.set(data.verifications.total ?? 0);
 
-        const revenue = orderList
-          .filter((o: any) => o.status === 2)
-          .reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+        this.recentOrders.set(orders.slice(0, 5));
+        this.ordersLoading.set(false);
+
+        const lowStock = products.filter((p: any) => p.stock < 5);
+        this.lowStockProducts.set(lowStock.slice(0, 8));
+        this.productsLoading.set(false);
+
+        const totalRevenue = orders
+          .filter((o: any) => o.status === 'Completed')
+          .reduce((sum: number, o: any) => sum + (o.total ?? 0), 0);
 
         this.stats.set([
-          { label: 'Total Orders',   value: orderList.length,     sub: 'All time',         icon: '🛒', color: '#6366f1', trend: 12 },
-          { label: 'Revenue',        value: `PKR ${Math.round(revenue).toLocaleString()}`, sub: 'Completed orders', icon: '💰', color: '#22c55e', trend: 8 },
-          { label: this.auth.isSeller() ? 'My Products' : 'Products', value: productList.length, sub: 'In catalog', icon: '📦', color: '#f59e0b' },
-          { label: 'Pending Orders', value: orderList.filter((o: any) => o.status === 0).length, sub: 'Need attention', icon: '⏳', color: '#ef4444' },
+          { label: 'Total Products', value: data.products?.total ?? products.length, sub: `${lowStock.length} low stock`, icon: '📦', color: '#60a5fa' },
+          { label: 'Total Orders',   value: data.orders?.total ?? orders.length,     sub: 'All time',          icon: '🛒', color: '#34d399' },
+          { label: 'Revenue',        value: `PKR ${(totalRevenue / 1000).toFixed(1)}k`, sub: 'Completed orders', icon: '💰', color: '#f59e0b', trend: 12 },
+          { label: 'Out of Stock',   value: products.filter((p: any) => p.stock === 0).length, sub: 'Need restocking', icon: '⚠️', color: '#f87171' },
         ]);
 
         this.loading.set(false);
-        this.ordersLoading.set(false);
-        this.productsLoading.set(false);
       },
-      error: () => {
-        this.loading.set(false);
-        this.ordersLoading.set(false);
-        this.productsLoading.set(false);
-      }
+      error: () => this.loading.set(false)
     });
   }
 }

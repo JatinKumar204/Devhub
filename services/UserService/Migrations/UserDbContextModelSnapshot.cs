@@ -22,6 +22,324 @@ namespace UserService.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("UserService.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "IsRead", "CreatedDate");
+
+                    b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("UserService.Models.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByIp")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokedReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "IsRevoked", "IsUsed");
+
+                    b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("UserService.Models.SellerProfile", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AccountNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("AccountTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("AddressLine1")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("AddressLine2")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasDefaultValue("Pakistan");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IbanNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("NtnNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Province")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SalesTaxNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("StoreDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("StoreLogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("StoreName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("SellerProfiles");
+
+                    b.HasData(
+                        new
+                        {
+                            UserId = 2,
+                            AddressLine1 = "123 Main Street",
+                            City = "Karachi",
+                            Country = "Pakistan",
+                            CreatedBy = "seed",
+                            CreatedDate = new DateTime(2024, 3, 10, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PhoneNumber = "03001234567",
+                            PostalCode = "75500",
+                            Province = "Sindh",
+                            StoreName = "Bob's Store"
+                        },
+                        new
+                        {
+                            UserId = 5,
+                            AddressLine1 = "456 Tech Avenue",
+                            City = "Lahore",
+                            Country = "Pakistan",
+                            CreatedBy = "seed",
+                            CreatedDate = new DateTime(2024, 6, 5, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PhoneNumber = "03119876543",
+                            PostalCode = "54000",
+                            Province = "Punjab",
+                            StoreName = "TechMart Official"
+                        });
+                });
+
+            modelBuilder.Entity("UserService.Models.SellerVerification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastResubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ReviewedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("SubmissionCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SubmittedAt");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("SellerVerifications");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedBy = "seed",
+                            CreatedDate = new DateTime(2024, 3, 10, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ReviewedAt = new DateTime(2024, 3, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ReviewedByAdminId = 1,
+                            Status = "Approved",
+                            SubmissionCount = 1,
+                            SubmittedAt = new DateTime(2024, 3, 10, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserId = 2
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedBy = "seed",
+                            CreatedDate = new DateTime(2024, 6, 5, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ReviewedAt = new DateTime(2024, 6, 6, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ReviewedByAdminId = 1,
+                            Status = "Approved",
+                            SubmissionCount = 1,
+                            SubmittedAt = new DateTime(2024, 6, 5, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserId = 5
+                        });
+                });
+
             modelBuilder.Entity("UserService.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -148,6 +466,213 @@ namespace UserService.Migrations
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "Seller"
                         });
+                });
+
+            modelBuilder.Entity("UserService.Models.VerificationDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("VerificationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VerificationId", "Status");
+
+                    b.ToTable("VerificationDocuments");
+                });
+
+            modelBuilder.Entity("UserService.Models.VerificationStatusHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChangedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ChangedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FromStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("VerificationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VerificationId", "ChangedAt");
+
+                    b.ToTable("VerificationStatusHistories");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ChangedAt = new DateTime(2024, 3, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ChangedByName = "Alice Johnson",
+                            ChangedByUserId = 1,
+                            Comment = "Verified via seed data migration",
+                            FromStatus = "PendingApproval",
+                            ToStatus = "Approved",
+                            VerificationId = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            ChangedAt = new DateTime(2024, 6, 6, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ChangedByName = "Alice Johnson",
+                            ChangedByUserId = 1,
+                            Comment = "Verified via seed data migration",
+                            FromStatus = "PendingApproval",
+                            ToStatus = "Approved",
+                            VerificationId = 2
+                        });
+                });
+
+            modelBuilder.Entity("UserService.Models.RefreshToken", b =>
+                {
+                    b.HasOne("UserService.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UserService.Models.SellerProfile", b =>
+                {
+                    b.HasOne("UserService.Models.User", "User")
+                        .WithOne()
+                        .HasForeignKey("UserService.Models.SellerProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UserService.Models.SellerVerification", b =>
+                {
+                    b.HasOne("UserService.Models.User", "User")
+                        .WithOne()
+                        .HasForeignKey("UserService.Models.SellerVerification", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UserService.Models.SellerProfile", "SellerProfile")
+                        .WithOne("Verification")
+                        .HasForeignKey("UserService.Models.SellerVerification", "UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("SellerProfile");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UserService.Models.VerificationDocument", b =>
+                {
+                    b.HasOne("UserService.Models.SellerVerification", "Verification")
+                        .WithMany("Documents")
+                        .HasForeignKey("VerificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Verification");
+                });
+
+            modelBuilder.Entity("UserService.Models.VerificationStatusHistory", b =>
+                {
+                    b.HasOne("UserService.Models.SellerVerification", "Verification")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("VerificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Verification");
+                });
+
+            modelBuilder.Entity("UserService.Models.SellerProfile", b =>
+                {
+                    b.Navigation("Verification");
+                });
+
+            modelBuilder.Entity("UserService.Models.SellerVerification", b =>
+                {
+                    b.Navigation("Documents");
+
+                    b.Navigation("StatusHistory");
                 });
 #pragma warning restore 612, 618
         }

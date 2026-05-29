@@ -194,7 +194,7 @@ import { ToastService } from '../../core/services/toast.service';
             <div class="content-card">
               <h2>Recent Orders</h2>
               <p class="redirect-note">
-                <a routerLink="/shop/orders" class="btn-view-orders">View All Orders →</a>
+                <a routerLink="/orders" class="btn-view-orders">View All Orders →</a>
               </p>
             </div>
           }

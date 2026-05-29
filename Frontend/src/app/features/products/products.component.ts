@@ -132,7 +132,13 @@ import { Product, ProductPage } from '../../core/models/ecommerce.models';
             <div class="form-row">
               <div class="field">
                 <label>Category *</label>
-                <input formControlName="category" class="form-input" placeholder="Electronics, Fashion..." />
+                 <select formControlName="category" class="form-input">
+                  <option value="">--Select Category--</option>
+
+                  @for (cat of categories(); track cat) {
+                    <option [value]="cat">{{ cat }}</option>
+                  }
+                </select>
               </div>
               <div class="field">
                 <label>Brand</label>
